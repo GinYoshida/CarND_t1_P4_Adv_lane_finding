@@ -12,10 +12,12 @@ def main():
     # for file_path in images:
     #     myfc.image_converter(file_path)
 
-    clip1 = VideoFileClip("challenge_video.mp4").subclip(0, 5)
-    # clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
-    white_clip = clip1.fl_image(myfc.pipeline_video)
-    white_clip.write_videofile("challenge_video_w_pipeline.mp4", audio=False)
+    myfc.image_converter('harder_challenge_video_Moment_1')
+
+    # clip1 = VideoFileClip("challenge_video.mp4").subclip(0, 5)
+    # # clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
+    # white_clip = clip1.fl_image(myfc.pipeline_video)
+    # white_clip.write_videofile("challenge_video_w_pipeline.mp4", audio=False)
 
 
 if __name__ == "__main__":
