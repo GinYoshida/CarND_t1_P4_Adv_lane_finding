@@ -108,21 +108,10 @@ def create_binary_img(img,pts1,pts2):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     # s_channel = clahe.apply(s_channel)
     # l_channel = clahe.apply(l_channel)
-    gray = clahe.apply(gray)
-
-    sobelx_g = cv2.Sobel(gray, cv2.CV_64F, 1, 0)  # Take the derivative in x
-    abs_sobelx_g = np.absolute(sobelx_g)
-    scaled_sobel_g = np.uint8(255 * abs_sobelx_g / np.max(abs_sobelx_g))
-    binary_output_g =  np.zeros_like(sobelx_g)
-    s_thresh_g = (30, 50)
-    binary_output_g[(scaled_sobel_g >= s_thresh_g[0]) & (scaled_sobel_g <= s_thresh_g[1])] = 1
 
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
     abs_sobelx = np.absolute(sobelx)  # Absolute x derivative to accentuate lines away from horizontal
     scaled_sobel = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
-    sobelx_s = cv2.Sobel(s_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
-    abs_sobelx_s = np.absolute(sobelx_s)  # Absolute x derivative to accentuate lines away from horizontal
-    scaled_sobel_s = np.uint8(255 * abs_sobelx_s / np.max(abs_sobelx))
 
     # Threshold x gradient
     sxbinary = np.zeros_like(scaled_sobel)
@@ -133,22 +122,22 @@ def create_binary_img(img,pts1,pts2):
     #
     s_binary = np.zeros_like(s_channel)
     s_binary[:,:] = 1
-    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 0
+    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 0
 
-    # plt.imshow(s_binary)
+    #
+    # Combine both sobel and S channel data
+    #
+    output_binary = np.zeros_like(sxbinary)
+    output_binary[(s_binary==1) & (sxbinary==1)] = 1
+    #
+    # plt.imshow(output_binary)
     # plt.show()
 
 
     #
     # Combine both sobel and S channel data
     #
-    output_binary = np.zeros_like(s_binary)
-    output_binary[(s_binary==1) & (sxbinary==1)] = 1
-
-    #
-    # Combine both sobel and S channel data
-    #
-    temp_output_binary = np.zeros_like(s_binary)
+    temp_output_binary = np.zeros_like(sxbinary)
     temp_output_binary[output_binary==0] = 1
 
     #
@@ -219,21 +208,38 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
             pass
         else:
             if l_center > l_center_1_bf+window_width*tol_lane_gap or l_center < l_center_1_bf-window_width*tol_lane_gap:
-                l_center = l_center_1_bf
                 l_key = False
             else:
                 pass
             if r_center > r_center_1_bf+window_width*tol_lane_gap or r_center < r_center_1_bf-window_width*tol_lane_gap:
-                r_center = r_center_1_bf
                 r_key = False
             else:
                 pass
 
-            l_center_1_bf = l_center
-            r_center_1_bf = r_center
+            #New position guess
+            window_center_l = []
+            window_center_r = []
+            for i, data_pos in enumerate(window_centroids):
+                if data_pos[0] == None:
+                    pass
+                else:
+                    window_center_l.append([data_pos[0], image.shape[0] - (0.5 + i) * window_height])
+                    window_center_r.append([data_pos[1], image.shape[0] - (0.5 + i) * window_height])
+            if len(window_center_l) <=2 or len(window_center_r) <=2:
+                l_center_1_bf = l_center
+                r_center_1_bf = r_center
+            else:
+                l_fit_ex = polyfit_funt(window_center_l,1,1)
+                r_fit_ex = polyfit_funt(window_center_l,1,1)
+
+                level_cal = (level + 0.5)*window_height
+                l_center_1_bf = l_fit_ex[0] * level_cal ** 2 + l_fit_ex[1] * level_cal ** 1 + l_fit_ex[2]
+                r_center_1_bf = r_fit_ex[0] * level_cal ** 2 + r_fit_ex[1] * level_cal ** 1 + r_fit_ex[2]
 
         if l_key and r_key:
             window_centroids.append((l_center, r_center))
+            l_center_1_bf = l_center
+            r_center_1_bf = r_center
         else:
             window_centroids.append((None, None))
 
@@ -347,3 +353,119 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
 
 
     return lane_img,current_position,left_radius,right_radius
+
+
+def image_converter(input_file_name):
+
+    file_path = './test_images/' + input_file_name + '.jpg'
+    print(file_path)
+    target_img = cv2.imread(file_path)
+    original = target_img.copy()
+
+    # camera caliburation data
+    cal_img = cv2.imread('./camera_cal/calibration8.jpg')
+    undist_data = create_cmr_mtx(cal_img, 9, 6)
+    undist_img = undist_image(target_img, undist_data)
+
+    # Convert binary image and apply perspective transform
+    pts1 = np.float32([[594, 450], [200, 720], [1079, 720], [685, 450]])
+    pts2 = np.float32([[300, 0], [300, 720], [979, 720], [979, 0]])
+
+    binary_img = create_binary_img(undist_img, pts1, pts2)
+
+    # Draw lane image
+    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=60, window_height=80, margin=100,
+                                                          tol_lane_gap=1.5)
+    color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
+                                                                                      right_lane, 10)
+    if current_position < 0:
+        text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
+    else:
+        text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
+
+    text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
+                   + "Right radius: {0:.1f}".format(right_radius) + "m, "
+
+    # Marge lane image and original image
+    M = cv2.getPerspectiveTransform(pts2, pts1)
+    rev_color_img = cv2.warpPerspective(color_img, M, (1280, 720))
+
+    result = cv2.addWeighted(undist_img, 1, rev_color_img, 0.9, 0)
+    font = cv2.FONT_HERSHEY_DUPLEX
+    cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+    cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+
+    # plot the training and validation loss for each epoch
+    fig = plt.figure(figsize=(15, 8))
+    ax1 = fig.add_subplot(2, 3, 1)
+    ax1.imshow(cv2.cvtColor(original, cv2.COLOR_BGR2RGB))
+    ax1.set_title('Original image')
+
+    ax2 = fig.add_subplot(2, 3, 2)
+    ax2.imshow(cv2.cvtColor(undist_img, cv2.COLOR_BGR2RGB))
+    ax2.set_title('Undistorted image')
+
+    ax3 = fig.add_subplot(2, 3, 3)
+    ax3.imshow(binary_img)
+    ax3.set_title('Binaly img')
+
+    ax4 = fig.add_subplot(2, 3, 4)
+    ax4.imshow(binary_img2)
+    ax4.set_title('Binaly with after lane finding')
+
+    ax5 = fig.add_subplot(2, 3, 5)
+    ax5.imshow(color_img)
+    ax5.set_title('Lane meta data')
+
+    ax6 = fig.add_subplot(2, 3, 6)
+    ax6.imshow(result)
+    ax6.set_title('Converted image')
+
+    plt.subplots_adjust(left=0.05, right=0.9, top=0.9, bottom=0.1,
+                        wspace=0.2, hspace=0.2)
+
+    output_path = './output_images/' + input_file_name + '.png'
+
+    plt.savefig(output_path)
+
+    return "Done"
+
+def pipeline_video(input_img):
+
+    target_img = input_img
+    original = target_img.copy()
+
+    # camera caliburation data
+    cal_img = cv2.imread('./camera_cal/calibration8.jpg')
+    undist_data = create_cmr_mtx(cal_img, 9, 6)
+    undist_img = undist_image(target_img, undist_data)
+
+    # Convert binary image and apply perspective transform
+    pts1 = np.float32([[594, 450], [200, 720], [1079, 720], [685, 450]])
+    pts2 = np.float32([[300, 0], [300, 720], [979, 720], [979, 0]])
+
+    binary_img = create_binary_img(undist_img, pts1, pts2)
+
+    # Draw lane image
+    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=60, window_height=80, margin=100,
+                                                          tol_lane_gap=1.5)
+    color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
+                                                                                      right_lane, 10)
+    if current_position < 0:
+        text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
+    else:
+        text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
+
+    text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
+                   + "Right radius: {0:.1f}".format(right_radius) + "m, "
+
+    # Marge lane image and original image
+    M = cv2.getPerspectiveTransform(pts2, pts1)
+    rev_color_img = cv2.warpPerspective(color_img, M, (1280, 720))
+
+    result = cv2.addWeighted(undist_img, 1, rev_color_img, 0.9, 0)
+    font = cv2.FONT_HERSHEY_DUPLEX
+    cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+    cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+
+    return result
