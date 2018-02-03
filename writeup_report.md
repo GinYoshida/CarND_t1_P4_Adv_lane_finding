@@ -31,21 +31,21 @@ The goals / steps of this project are the following:
 
 ### Writeup
 
-#### 1. Rubric points for this project are shown in following link
+### Rubric points for this project are shown in following link
 
  [Link](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md)
 
  Required data is shonw below.
 
-### Camera Calibration
+### 0. Camera Calibration
 
  In following section, procedure in each step is shown.
  Output of each steps are shown in Fig.1.
 
-#### Fig.1
-##### (a) Conversion of test1.png in test_images directory
+#### Fig.1 Example of output
+##### (a) Conversion of straight_lines1.jpg in test_images directory
 ![alt text][image1]
-##### (b) Conversion of test2.png in test_images directory
+##### (b) Conversion of test2.jpg in test_images directory
 ![alt text][image2]
 
 ### 1. Compute the camera calibration matrix and distortion
