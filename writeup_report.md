@@ -42,15 +42,13 @@ The goals / steps of this project are the following:
  In following section, procedure in each step is shown.
  Output of each steps are shown in Fig.1.
 
-#### Fig.1 
+#### Fig.1
 ##### (a) Conversion of test1.png in test_images directory
 ![alt text][image1]
-
-#### (b) Conversion of test2.png in test_images directory
+##### (b) Conversion of test2.png in test_images directory
 ![alt text][image2]
 
-
-#### 1. Compute the camera calibration matrix and distortion
+### 1. Compute the camera calibration matrix and distortion
 
  Function of "create_cmr_mtx" is defined in functionset.py. ( from line 7 to 36 )  
  This function is used at line 343 and 408 in functionset.py with parameter of 9 and 6.  
@@ -64,7 +62,7 @@ The goals / steps of this project are the following:
  For this calibration, calibration8.jpg was selected from "camera_cal" directory, because it showed best straight line with testing all other ipg.  
  The best results mean that it showed the biggest radius with test of straight_lines1.jpg and straight_line2.jpg. 
 
-#### 2. Convert to binary image and apply perspective transform
+### 2. Convert to binary image and apply perspective transform
 
  Function of "create_binary_img" was defined to convert original BGR image to binary image including perspective transform.(from line 50 to 90).  
  
@@ -74,11 +72,11 @@ The goals / steps of this project are the following:
  For S channel, threshould was directory applied. (From line 69 to 71).  
  Example of each output is shown in Fig2. 
  
- ### Fig.2 Conversion based each threshould
-##### (a) Gradient threshold with L channel  
-![alt text][image3]  
-##### (b) Threshould with S channel  
-![alt text][image4]  
+#### Fig.2 Conversion based each threshould
+##### (a) Gradient threshold with L channel
+![alt text][image3]
+##### (b) Threshould with S channel
+![alt text][image4]
 
 After marge of both binary images, perspective transformation was applied (From line 78 to 88)
 Coordinats for perspective transfrom are shonw in table1.  
@@ -95,7 +93,6 @@ In Fig1, examples of undistorted image is shown in upper right.
 
 
 #### 4. Lane position detection
-
  "find_window_centroids" function in functionset.py was defined to detect lane position. (From line 108 to 208)  
  Firstly, find the two starting positions for the left and right lane by using np.sum to get the vertical image slice and then np.convolve the vertical image slice with the window template. (From line 124 to 130)
  This position was set as initial position.  
@@ -103,18 +100,19 @@ In Fig1, examples of undistorted image is shown in upper right.
  If difference of center position in the next layer is more than multiplication between tol_lane_gap and window_width, position will be exclude for output and None will be added.
 
 #### 5. Polynomial fitting and parameter calculation
-  
  For polynomial curve fitting from lane positions, "polyfit_funt" function was defined. (From line 256 to 270) 
  As shown in 4, lane position list includes None data. They were excluded in this function.
 
- For calculation of lane radius and position of vehicle, "image_pal_calculatn" function was defined. (From laine 274 to 325)
+ For calculation of lane radius and position of vehicle, "image_pal_calculatn" function was defined. (From line 274 to 325)
  Vehicle position was calculated as mid point between end of lane curves, calculated with polyfit_funt. (From line 288 295)
- Radius was calculated based on the following formula.
+ Radius was calculated based on coefficient of polynomial fitting. (From line 322 to 323)
+ [Detail about appoximation of radius.](https://www.intmath.com/applications-differentiation/8-radius-curvature.php)
 
  In Fig1. right bottom image includs all parameters.   
 
 #### 6. Video with pip line
 
  Pip line for video was defined as "pipeline_video" function. (From line 397 to 435)
- Output video data is here [link to my video result](./project_video.mp4)
-
+ Output video data is here [link to my video result](./project_video_w_pipeline.mp4)
+ 
+![alt text][video1]: 
