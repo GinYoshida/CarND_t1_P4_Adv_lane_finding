@@ -37,8 +37,6 @@ The goals / steps of this project are the following:
 
  Required data is shonw below.
 
-### 0. Camera Calibration
-
  In following section, procedure in each step is shown.
  Output of each steps are shown in Fig.1.
 
