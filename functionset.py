@@ -5,37 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def create_cmr_mtx(img,nx,ny):
-    """ Img: image data of chess board to calculate camera matrix
-    nx, ny: number of row and column of chess board
-    """
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Find the chessboard corners
-    ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
-
-    # If found, draw corners
-    if ret == True:
-        # Create Camera matrix in accordance with CV2 page
-        # https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_calib3d/py_calibration/py_calibration.html
-        objpoints = []  # 3d point in real world space
-        imgpoints = []  # 2d points in image plane.
-        objp = np.zeros((ny * nx, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
-
-        objpoints.append(objp)
-        imgpoints.append(corners)
-        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-
-        print("here")
-        print("total error:", total_erro / len(objpoints))
-
-        return [mtx,dist]
-    else:
-        print("error: Conner can not be found")
-        return None
-
-def create_cmr_mtx(img,nx,ny):
     '''
     Calculate Camera calibration matrix and distortion coefficients
     :param img: image to
@@ -57,7 +26,6 @@ def create_cmr_mtx(img,nx,ny):
         imgpoints = []  # 2d points in image plane.
         objp = np.zeros((ny * nx, 3), np.float32)
         objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
-
         objpoints.append(objp)
         imgpoints.append(corners)
         ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
@@ -79,36 +47,21 @@ def undist_image(img, undist_data):
         rtn_img[:,:,ind] = cv2.undistort(img[:,:,ind],undist_data[0], undist_data[1], None, undist_data[0])
     return rtn_img
 
-
 def create_binary_img(img,pts1,pts2):
     '''
-    :param img:
-    :return:
+    :param img: image data to do perspective transform
+    :param pts1: coordinate of original image
+    :param pts2: coordinate of converted image
+    :return: Transformed image
     '''
-    #
-    # Apply Histogram Equalization
-    # https://docs.opencv.org/3.1.0/d5/daf/tutorial_py_histogram_equalization.html
-    #
-
-    s_thresh = (180, 255)
-    sx_thresh = (0, 30)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    s_thresh = (180, 255)# Threshold to do binary conversion with s compositon
+    sx_thresh = (0, 30) # Threshold to do binary conversion with sobel image
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
     temp_img = []
     l_channel = img[:,:,1]
     s_channel = img[:,:,2]
 
-    hist_eq = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    l_channel = hist_eq.apply(l_channel)
-    s_channel = hist_eq.apply(s_channel)
-
     # Convert from l channel data to binary data based on Sobel
-    #
-
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    # s_channel = clahe.apply(s_channel)
-    # l_channel = clahe.apply(l_channel)
-
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
     abs_sobelx = np.absolute(sobelx)  # Absolute x derivative to accentuate lines away from horizontal
     scaled_sobel = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
@@ -117,46 +70,35 @@ def create_binary_img(img,pts1,pts2):
     sxbinary = np.zeros_like(scaled_sobel)
     sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 1
 
-    #
     # Convert from S channel to binary data
-    #
     s_binary = np.zeros_like(s_channel)
     s_binary[:,:] = 1
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 0
 
-    #
     # Combine both sobel and S channel data
-    #
     output_binary = np.zeros_like(sxbinary)
     output_binary[(s_binary==1) & (sxbinary==1)] = 1
-    #
-    # plt.imshow(output_binary)
-    # plt.show()
 
-
-    #
     # Combine both sobel and S channel data
-    #
     temp_output_binary = np.zeros_like(sxbinary)
     temp_output_binary[output_binary==0] = 1
 
-    #
     # Perspective transform of binary file
-    #
     M = cv2.getPerspectiveTransform(pts1, pts2)
     temp_output_binary = cv2.warpPerspective(temp_output_binary, M, (1280, 720))
-
-    #
-    # Lane finding
-    #
-
-    # histogram = np.sum(temp_output_binary[temp_output_binary.shape[0] / 2:, :], axis=0)
-
-    # print(temp_output_binary.mean())
 
     return temp_output_binary
 
 def window_mask(width, height, img_ref, center, level):
+    '''
+    Return masked image to draw lane position.
+    :param width: width of masking area
+    :param height: hight of masking area
+    :param img_ref:reference image to get shape of image
+    :param center: position of masked window
+    :param level: Level to indicate which holizontal layer will be masked
+    :return: Maked image
+    '''
     output = np.zeros_like(img_ref)
     output[int(img_ref.shape[0] - (level + 1) * height):int(img_ref.shape[0] - level * height),
     max(0, int(center - width / 2)):min(int(center + width / 2), img_ref.shape[1])] = 1
@@ -164,12 +106,23 @@ def window_mask(width, height, img_ref, center, level):
 
 
 def find_window_centroids(image, window_width, window_height, margin, tol_lane_gap):
+    '''
+    Calculate positon of right and left lane.
+    :param image: original image
+    :param window_width: width of masking area
+    :param window_height: height of masking area
+    :param margin: margin to cut off unnecessary area from original image
+    :param tol_lane_gap: value to calculate how much difference is allowed to set for next layer from original layer.
+    If difference of center position in the next later is more than multiplication between tol_lane_gap and window_width,
+    position will be exclude for output and None will be added.
+    :return: List of center position of left and right in each horizontal layer.
+    '''
+
     window_centroids = []  # Store the (left,right) window centroid positions per level
     window = np.ones(window_width)  # Create our window template that we will use for convolutions
 
     # First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
     # and then np.convolve the vertical image slice with the window template
-
     # Sum quarter bottom of image to get slice, could use a different ratio
     l_sum = np.sum(image[int(3 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
     l_center = np.argmax(np.convolve(window, l_sum)) - window_width / 2
@@ -201,9 +154,11 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
         # Add what we found for that layer
         hight_center = image.shape[0] - (level-0.5) * window_height
 
+        # Values to check whether calculated center position is within tolerance or not.
         l_key=True
         r_key=True
 
+        # tolerance check.
         if level == 0:
             pass
         else:
@@ -216,7 +171,7 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
             else:
                 pass
 
-            #New position guess
+            #New position calculation
             window_center_l = []
             window_center_r = []
             for i, data_pos in enumerate(window_centroids):
@@ -246,10 +201,19 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
     return window_centroids
 
 def lane_writer(warped, window_width = 50,window_height = 80,margin = 100, tol_lane_gap=2):
+    '''
+    Draw images to show the position of lane.
+    :param warped: Binay image after perspective transformation
+    :param window_width: width of masking area
+    :param window_height: height of masking area
+    :param margin: margin to cut off unnecessary area from original image
+    :param tol_lane_gap: value to calculate how much difference is allowed to set for next layer from original layer.
+    If difference of center position in the next later is more than multiplication between tol_lane_gap and window_width,
+    position will be exclude for output and None will be added.
+    :return:Image including right and left lane, list of left and right lane center positions.
+    '''
 
-    # target_img = cv2.cvtColor(target_img, cv2.COLOR_HLS2BGR)
     window_centroids = find_window_centroids(warped, window_width, window_height, margin, tol_lane_gap)
-
     if len(window_centroids) > 0:
 
         # Points used to draw all the left and right windows
@@ -282,7 +246,7 @@ def lane_writer(warped, window_width = 50,window_height = 80,margin = 100, tol_l
             else:
                 window_center_l.append([data_pos[0],warped.shape[0]-(0.5+i)*window_height])
                 window_center_r.append([data_pos[1],warped.shape[0]-(0.5+i)*window_height])
-    # for data in wi
+
     # If no window centers found, just display orginal road image
     else:
         output_img = np.array(cv2.merge((warped, warped, warped)), np.uint8)
@@ -290,6 +254,13 @@ def lane_writer(warped, window_width = 50,window_height = 80,margin = 100, tol_l
     return output_img, window_center_l,window_center_r
 
 def polyfit_funt(lane_info, xm_per_pix, ym_per_pix):
+    '''
+    Calculate Polynomial curve fitting information in 3rd order.
+    :param lane_info: coordination of lane calculated from base image
+    :param xm_per_pix: coefficient to calculate meter from pixel in x direction
+    :param ym_per_pix: coefficient to calculate meter from pixel in y direction
+    :return: return coefficients of polynomial curve
+    '''
     x_cord = []
     y_cord = []
     for i in lane_info:
@@ -301,23 +272,27 @@ def polyfit_funt(lane_info, xm_per_pix, ym_per_pix):
     return fit_data
 
 def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
+    '''
+    covert image file with colored lane.
+    :param img: image to be converted
+    :param left_lane: coordination of left lane calculated from base image
+    :param right_lane: coordination of right lane calculated from base image
+    :param lane_thickness: lane thickness in converted image
+    :return:
+    '''
     ploty = np.linspace(0, 719, num=720)
     y_eval = np.max(ploty)
     xm_per_pix = 3.7/620
     ym_per_pix = 4*4/350
 
     # Calculate position
-
     left_fit_cr = polyfit_funt(left_lane,1,1)
     right_fit_cr = polyfit_funt(right_lane,1,1)
-
     left_end = left_fit_cr[0]*y_eval**2 + left_fit_cr[1]*y_eval**1 + left_fit_cr[2]
     right_end = right_fit_cr[0]*y_eval**2 + right_fit_cr[1]*y_eval**1 + right_fit_cr[2]
 
     # calculate mid point between left and right
     current_position = (np.mean((left_end,right_end))-1279/2)*xm_per_pix
-
-    #Create lane image
     sxbinary_road = np.zeros_like(cv2.split(img)[0])
     sxbinary_left = np.zeros_like(cv2.split(img)[0])
     sxbinary_right = np.zeros_like(cv2.split(img)[0])
@@ -329,13 +304,11 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
                 sxbinary_road[count_y,count_x] = 0
             else:
                 sxbinary_road[count_y, count_x] = 1
-
         for count_x, dumy_data in enumerate(slice_zeors_x):
             if count_x >= left_end - lane_thickness and count_x <= left_end + lane_thickness:
                 sxbinary_left[count_y, count_x] = 1
             else:
                 sxbinary_left[count_y, count_x] = 0
-
         for count_x, dumy_data in enumerate(slice_zeors_x):
             if count_x >= right_end - lane_thickness and count_x <= right_end + lane_thickness:
                 sxbinary_right[count_y, count_x] = 1
@@ -344,19 +317,22 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
 
     lane_img = cv2.merge((sxbinary_left,sxbinary_road,sxbinary_right))
     lane_img = lane_img *120
-
     left_fit_cr = polyfit_funt(left_lane,xm_per_pix,ym_per_pix)
     right_fit_cr = polyfit_funt(right_lane,xm_per_pix,ym_per_pix)
-
     left_radius  = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
     right_radius  = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
 
-
     return lane_img,current_position,left_radius,right_radius
 
-
 def image_converter(input_file_name):
-
+    '''
+    To convert images with colored lane, position of vehicle, radias fo lane.
+    Also, add output in each ste of conversion.
+    Create image from each steps.
+    Exported image will be saved into "output_images" directory.
+    :param input_file_name
+    :return: None
+    '''
     file_path = './test_images/' + input_file_name + '.jpg'
     print(file_path)
     target_img = cv2.imread(file_path)
@@ -370,7 +346,6 @@ def image_converter(input_file_name):
     # Convert binary image and apply perspective transform
     pts1 = np.float32([[594, 450], [200, 720], [1079, 720], [685, 450]])
     pts2 = np.float32([[300, 0], [300, 720], [979, 720], [979, 0]])
-
     binary_img = create_binary_img(undist_img, pts1, pts2)
 
     # Draw lane image
@@ -382,14 +357,12 @@ def image_converter(input_file_name):
         text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
     else:
         text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
-
     text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
                    + "Right radius: {0:.1f}".format(right_radius) + "m, "
 
     # Marge lane image and original image
     M = cv2.getPerspectiveTransform(pts2, pts1)
     rev_color_img = cv2.warpPerspective(color_img, M, (1280, 720))
-
     result = cv2.addWeighted(undist_img, 1, rev_color_img, 0.9, 0)
     font = cv2.FONT_HERSHEY_DUPLEX
     cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
@@ -400,38 +373,33 @@ def image_converter(input_file_name):
     ax1 = fig.add_subplot(2, 3, 1)
     ax1.imshow(cv2.cvtColor(original, cv2.COLOR_BGR2RGB))
     ax1.set_title('Original image')
-
     ax2 = fig.add_subplot(2, 3, 2)
     ax2.imshow(cv2.cvtColor(undist_img, cv2.COLOR_BGR2RGB))
     ax2.set_title('Undistorted image')
-
     ax3 = fig.add_subplot(2, 3, 3)
     ax3.imshow(binary_img)
     ax3.set_title('Binaly img')
-
     ax4 = fig.add_subplot(2, 3, 4)
     ax4.imshow(binary_img2)
     ax4.set_title('Binaly with after lane finding')
-
     ax5 = fig.add_subplot(2, 3, 5)
     ax5.imshow(color_img)
     ax5.set_title('Lane meta data')
-
     ax6 = fig.add_subplot(2, 3, 6)
     ax6.imshow(result)
     ax6.set_title('Converted image')
-
-    plt.subplots_adjust(left=0.05, right=0.9, top=0.9, bottom=0.1,
-                        wspace=0.2, hspace=0.2)
-
+    plt.subplots_adjust(left=0.05, right=0.9, top=0.9, bottom=0.1,wspace=0.2, hspace=0.2)
     output_path = './output_images/' + input_file_name + '.png'
-
     plt.savefig(output_path)
 
-    return "Done"
+    return None
 
 def pipeline_video(input_img):
-
+    '''
+    To convert images with colored lane, position of vehicle, radius of lane.
+    :param input_file_name
+    :return: images with colored lane, position of vehicle, radius of lane.
+    '''
     target_img = input_img
     original = target_img.copy()
 
@@ -443,7 +411,6 @@ def pipeline_video(input_img):
     # Convert binary image and apply perspective transform
     pts1 = np.float32([[594, 450], [200, 720], [1079, 720], [685, 450]])
     pts2 = np.float32([[300, 0], [300, 720], [979, 720], [979, 0]])
-
     binary_img = create_binary_img(undist_img, pts1, pts2)
 
     # Draw lane image
@@ -455,14 +422,11 @@ def pipeline_video(input_img):
         text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
     else:
         text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
-
     text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
                    + "Right radius: {0:.1f}".format(right_radius) + "m, "
-
     # Marge lane image and original image
     M = cv2.getPerspectiveTransform(pts2, pts1)
     rev_color_img = cv2.warpPerspective(color_img, M, (1280, 720))
-
     result = cv2.addWeighted(undist_img, 1, rev_color_img, 0.9, 0)
     font = cv2.FONT_HERSHEY_DUPLEX
     cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
