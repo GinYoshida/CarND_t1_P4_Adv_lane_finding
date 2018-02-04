@@ -117,4 +117,3 @@ In Fig1, examples of image afrer perspective transform are shown in upper right.
  Pipline for video was defined as "pipeline_video" function. (From line 397 to 435)
  Output video data is here [link to my video result](./project_video_w_pipeline.mp4)
  
-![alt text][video1]: 
