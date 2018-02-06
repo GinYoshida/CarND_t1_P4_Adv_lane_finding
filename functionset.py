@@ -54,12 +54,24 @@ def create_binary_img(img,pts1,pts2):
     :param pts2: coordinate of converted image
     :return: Transformed image
     '''
-    s_thresh = (180, 255)# Threshold to do binary conversion with s compositon
-    sx_thresh = (0, 30) # Threshold to do binary conversion with sobel image
+    s_thresh = (185, 255)# Threshold to do binary conversion with s compositon
+    sx_thresh = (0, 20) # Threshold to do binary conversion with sobel image
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
     temp_img = []
     l_channel = img[:,:,1]
     s_channel = img[:,:,2]
+
+    shadow_filter = np.zeros_like(l_channel)
+    shadow_filter[(l_channel <= 20) & (l_channel >= 0)] = 1
+    s_channel[(shadow_filter==1)]=0
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+    s_channel = clahe.apply(s_channel)
+
+    sobelx_s = cv2.Sobel(s_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
+    abs_sobelx_s = np.absolute(sobelx_s)
+    scaled_sobel_s = np.uint8(255 * abs_sobelx_s / np.max(abs_sobelx_s))
+    sxbinary_s = np.zeros_like(scaled_sobel_s)
+    sxbinary_s[(scaled_sobel_s >= 50) & (scaled_sobel_s <= 190)] = 1
 
     # Convert from l channel data to binary data based on Sobel
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
@@ -67,25 +79,41 @@ def create_binary_img(img,pts1,pts2):
     scaled_sobel = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
 
     # Threshold x gradient
-    sxbinary = np.zeros_like(scaled_sobel)
-    sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 1
+    sxbinary = np.ones_like(scaled_sobel)
+    sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 0
 
     # Convert from S channel to binary data
     s_binary = np.zeros_like(s_channel)
-    s_binary[:,:] = 1
-    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 0
+    s_binary[:, :] = 0
+    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 1
+
+    # equ = cv2.equalizeHist(s_channel)
+
 
     # Combine both sobel and S channel data
     output_binary = np.zeros_like(sxbinary)
-    output_binary[(s_binary==1) & (sxbinary==1)] = 1
+    # output_binary[(((sxbinary==1) | (s_binary==1)) & (sxbinary_s==1)) | (s_binary==1)] = 1
+    output_binary[(sxbinary==1) | (s_binary==1)] = 1
+
+
+    res = np.hstack((sxbinary*100, s_binary*100, sxbinary_s*100, output_binary*100))
+    # plt.imshow(res)
+    # plt.show()
+
+
+    res = np.hstack((s_channel, sxbinary_s*100))
+    # plt.imshow(res)
+    # plt.show()
+
+
 
     # Combine both sobel and S channel data
-    temp_output_binary = np.zeros_like(sxbinary)
-    temp_output_binary[output_binary==0] = 1
+    # temp_output_binary = np.zeros_like(sxbinary)
+    # temp_output_binary[output_binary==0] = 1
 
     # Perspective transform of binary file
     M = cv2.getPerspectiveTransform(pts1, pts2)
-    temp_output_binary = cv2.warpPerspective(temp_output_binary, M, (1280, 720))
+    temp_output_binary = cv2.warpPerspective(output_binary, M, (1280, 720))
 
     return temp_output_binary
 
@@ -119,8 +147,7 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
     '''
 
     window_centroids = []  # Store the (left,right) window centroid positions per level
-    window = np.ones(window_width)  # Create our window template that we will use for convolutions
-
+    window = np.ones(window_width)
     # First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
     # and then np.convolve the vertical image slice with the window template
     # Sum quarter bottom of image to get slice, could use a different ratio
@@ -136,6 +163,11 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
     l_center_1_bf = l_center
     r_center_1_bf = r_center
     for level in range(1, (int)(image.shape[0] / window_height)):
+        # temp_windows_width = (int)(window_width * (level / (image.shape[0] / window_height) + 0.5))
+        temp_windows_width = window_width
+        window = np.ones(temp_windows_width)
+        window = np.ones(temp_windows_width)
+        # Create our window template that we will use for convolutions
         # convolve the window into the vertical slice of the image
         image_layer = np.sum(
             image[int(image.shape[0] - (level + 1) * window_height):int(image.shape[0] - level * window_height), :],
@@ -143,7 +175,7 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
         conv_signal = np.convolve(window, image_layer)
         # Find the best left centroid by using past left center as a reference
         # Use window_width/2 as offset because convolution signal reference is at right side of window, not center of window
-        offset = window_width / 2
+        offset = temp_windows_width / 2
         l_min_index = int(max(l_center + offset - margin, 0))
         l_max_index = int(min(l_center + offset + margin, image.shape[1]))
         l_center = np.argmax(conv_signal[l_min_index:l_max_index]) + l_min_index - offset
@@ -157,19 +189,27 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
         # Values to check whether calculated center position is within tolerance or not.
         l_key=True
         r_key=True
-
         # tolerance check.
         if level == 0:
             pass
         else:
-            if l_center > l_center_1_bf+window_width*tol_lane_gap or l_center < l_center_1_bf-window_width*tol_lane_gap:
+            if l_center > l_center_1_bf+temp_windows_width*tol_lane_gap or l_center < l_center_1_bf-temp_windows_width*tol_lane_gap:
                 l_key = False
             else:
                 pass
-            if r_center > r_center_1_bf+window_width*tol_lane_gap or r_center < r_center_1_bf-window_width*tol_lane_gap:
+            if r_center > r_center_1_bf+temp_windows_width*tol_lane_gap or r_center < r_center_1_bf-temp_windows_width*tol_lane_gap:
                 r_key = False
             else:
                 pass
+
+        if conv_signal[l_min_index:l_max_index].max() <= 100:
+            l_key = False
+        else:
+            pass
+        if conv_signal[r_min_index:r_max_index].max() <= 100:
+            r_key = False
+        else:
+            pass
 
             #New position calculation
             window_center_l = []
@@ -349,7 +389,7 @@ def image_converter(input_file_name):
     binary_img = create_binary_img(undist_img, pts1, pts2)
 
     # Draw lane image
-    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=60, window_height=80, margin=100,
+    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=100, margin=100,
                                                           tol_lane_gap=1.5)
     color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
                                                                                       right_lane, 10)
@@ -414,8 +454,8 @@ def pipeline_video(input_img):
     binary_img = create_binary_img(undist_img, pts1, pts2)
 
     # Draw lane image
-    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=60, window_height=80, margin=100,
-                                                          tol_lane_gap=1.5)
+    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=80, margin=100,
+                                                          tol_lane_gap=2)
     color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
                                                                                       right_lane, 10)
     if current_position < 0:
