@@ -33,7 +33,7 @@ def main():
 #       myfc.image_converter(file_path)
 
     # Part for step2
-    clip1 = VideoFileClip("project_video.mp4")
+    clip1 = VideoFileClip("project_video.mp4").subclip(38.43)
     # clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
     white_clip = clip1.fl_image(myfc.pipeline_video)
     white_clip.write_videofile("project_video_w_pipeline.mp4", audio=False)
