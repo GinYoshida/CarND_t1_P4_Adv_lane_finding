@@ -54,19 +54,24 @@ def create_binary_img(img,pts1,pts2):
     :param pts2: coordinate of converted image
     :return: Transformed image
     '''
-    s_thresh = (185, 255)# Threshold to do binary conversion with s compositon
+    s_thresh = (190, 255)# Threshold to do binary conversion with s compositon
     sx_thresh = (0, 20) # Threshold to do binary conversion with sobel image
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
     temp_img = []
     l_channel = img[:,:,1]
     s_channel = img[:,:,2]
 
+    # To reduce shadow effect from S channel, low L channel pixels are excluded.
     shadow_filter = np.zeros_like(l_channel)
     shadow_filter[(l_channel <= 20) & (l_channel >= 0)] = 1
     s_channel[(shadow_filter==1)]=0
+
+    # To reduce effect of color change of pavement, histogram equalization was applied.
+    # Some part of pavement shows similar color as yellow lane and lane detection is getting harder.
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
     s_channel = clahe.apply(s_channel)
 
+    # Gradient detection for L channel
     sobelx_s = cv2.Sobel(s_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
     abs_sobelx_s = np.absolute(sobelx_s)
     scaled_sobel_s = np.uint8(255 * abs_sobelx_s / np.max(abs_sobelx_s))
@@ -87,29 +92,9 @@ def create_binary_img(img,pts1,pts2):
     s_binary[:, :] = 0
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 1
 
-    # equ = cv2.equalizeHist(s_channel)
-
-
     # Combine both sobel and S channel data
     output_binary = np.zeros_like(sxbinary)
-    # output_binary[(((sxbinary==1) | (s_binary==1)) & (sxbinary_s==1)) | (s_binary==1)] = 1
     output_binary[(sxbinary==1) | (s_binary==1)] = 1
-
-
-    res = np.hstack((sxbinary*100, s_binary*100, sxbinary_s*100, output_binary*100))
-    # plt.imshow(res)
-    # plt.show()
-
-
-    res = np.hstack((s_channel, sxbinary_s*100))
-    # plt.imshow(res)
-    # plt.show()
-
-
-
-    # Combine both sobel and S channel data
-    # temp_output_binary = np.zeros_like(sxbinary)
-    # temp_output_binary[output_binary==0] = 1
 
     # Perspective transform of binary file
     M = cv2.getPerspectiveTransform(pts1, pts2)
@@ -132,7 +117,6 @@ def window_mask(width, height, img_ref, center, level):
     max(0, int(center - width / 2)):min(int(center + width / 2), img_ref.shape[1])] = 1
     return output
 
-
 def find_window_centroids(image, window_width, window_height, margin, tol_lane_gap):
     '''
     Calculate positon of right and left lane.
@@ -145,7 +129,6 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
     position will be exclude for output and None will be added.
     :return: List of center position of left and right in each horizontal layer.
     '''
-
     window_centroids = []  # Store the (left,right) window centroid positions per level
     window = np.ones(window_width)
     # First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
@@ -163,10 +146,8 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
     l_center_1_bf = l_center
     r_center_1_bf = r_center
     for level in range(1, (int)(image.shape[0] / window_height)):
-        # temp_windows_width = (int)(window_width * (level / (image.shape[0] / window_height) + 0.5))
-        temp_windows_width = window_width
-        window = np.ones(temp_windows_width)
-        window = np.ones(temp_windows_width)
+        window = np.ones(window_width)
+        window = np.ones(window_width)
         # Create our window template that we will use for convolutions
         # convolve the window into the vertical slice of the image
         image_layer = np.sum(
@@ -175,7 +156,7 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
         conv_signal = np.convolve(window, image_layer)
         # Find the best left centroid by using past left center as a reference
         # Use window_width/2 as offset because convolution signal reference is at right side of window, not center of window
-        offset = temp_windows_width / 2
+        offset = window_width / 2
         l_min_index = int(max(l_center + offset - margin, 0))
         l_max_index = int(min(l_center + offset + margin, image.shape[1]))
         l_center = np.argmax(conv_signal[l_min_index:l_max_index]) + l_min_index - offset
@@ -189,15 +170,21 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
         # Values to check whether calculated center position is within tolerance or not.
         l_key=True
         r_key=True
+
         # tolerance check.
         if level == 0:
             pass
         else:
-            if l_center > l_center_1_bf+temp_windows_width*tol_lane_gap or l_center < l_center_1_bf-temp_windows_width*tol_lane_gap:
+            upper = l_center_1_bf+ window_width * tol_lane_gap
+            lower = l_center_1_bf- window_width * tol_lane_gap
+            if l_center > upper or l_center < lower:
                 l_key = False
             else:
                 pass
-            if r_center > r_center_1_bf+temp_windows_width*tol_lane_gap or r_center < r_center_1_bf-temp_windows_width*tol_lane_gap:
+
+            upper = r_center_1_bf + window_width * tol_lane_gap
+            lower = r_center_1_bf - window_width * tol_lane_gap
+            if r_center > upper or r_center < lower:
                 r_key = False
             else:
                 pass
@@ -231,13 +218,13 @@ def find_window_centroids(image, window_width, window_height, margin, tol_lane_g
                 l_center_1_bf = l_fit_ex[0] * level_cal ** 2 + l_fit_ex[1] * level_cal ** 1 + l_fit_ex[2]
                 r_center_1_bf = r_fit_ex[0] * level_cal ** 2 + r_fit_ex[1] * level_cal ** 1 + r_fit_ex[2]
 
+        # If new position of left and right lane is not so far from previour layer, l_key and r_key must be True
         if l_key and r_key:
             window_centroids.append((l_center, r_center))
             l_center_1_bf = l_center
             r_center_1_bf = r_center
         else:
             window_centroids.append((None, None))
-
     return window_centroids
 
 def lane_writer(warped, window_width = 50,window_height = 80,margin = 100, tol_lane_gap=2):
@@ -252,7 +239,6 @@ def lane_writer(warped, window_width = 50,window_height = 80,margin = 100, tol_l
     position will be exclude for output and None will be added.
     :return:Image including right and left lane, list of left and right lane center positions.
     '''
-
     window_centroids = find_window_centroids(warped, window_width, window_height, margin, tol_lane_gap)
     if len(window_centroids) > 0:
 
@@ -306,9 +292,7 @@ def polyfit_funt(lane_info, xm_per_pix, ym_per_pix):
     for i in lane_info:
         x_cord.append(i[0])
         y_cord.append(i[1])
-
     fit_data = np.polyfit(np.array(y_cord) * ym_per_pix, np.array(x_cord) * xm_per_pix, 2)
-
     return fit_data
 
 def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
@@ -318,7 +302,7 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
     :param left_lane: coordination of left lane calculated from base image
     :param right_lane: coordination of right lane calculated from base image
     :param lane_thickness: lane thickness in converted image
-    :return:
+    :return: Lane image, and parameters of lane (possition, lane radius, lane status at end of lane image)
     '''
     ploty = np.linspace(0, 719, num=720)
     y_eval = np.max(ploty)
@@ -482,13 +466,14 @@ def video_creation(original_video_name, output_video_name, end_sec = 1, start_se
     video = cv2.VideoCapture(original_video_name)
     total_num_frame = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = video.get(cv2.CAP_PROP_FPS)
-    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-    out = cv2.VideoWriter('project_video_w_pipeline.mp4', fourcc, fps, (1280, 720))
+    fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+    out = cv2.VideoWriter('project_video_w_pipeline.avi', fourcc, fps, (1280, 720))
 
     start_frame = start_sec * fps
     end_frame = end_sec * fps
     if flg_whole_vide == True:
-        ent_frame = total_num_frame
+        start_frame = 1
+        end_frame = total_num_frame
     else:
         pass
 
