@@ -331,6 +331,9 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
     left_end = left_fit_cr[0]*y_eval**2 + left_fit_cr[1]*y_eval**1 + left_fit_cr[2]
     right_end = right_fit_cr[0]*y_eval**2 + right_fit_cr[1]*y_eval**1 + right_fit_cr[2]
 
+    left_end_in_dir = left_fit_cr[2]
+    right_end_in_dir  = right_fit_cr[2]
+
     # calculate mid point between left and right
     current_position = (np.mean((left_end,right_end))-1279/2)*xm_per_pix
     sxbinary_road = np.zeros_like(cv2.split(img)[0])
@@ -362,7 +365,7 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
     left_radius  = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
     right_radius  = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
 
-    return lane_img,current_position,left_radius,right_radius
+    return lane_img,current_position,left_radius,right_radius,left_end_in_dir,right_end_in_dir
 
 def image_converter(input_file_name):
     '''
@@ -391,8 +394,8 @@ def image_converter(input_file_name):
     # Draw lane image
     binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=100, margin=100,
                                                           tol_lane_gap=1.5)
-    color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
-                                                                                      right_lane, 10)
+    color_img, current_position, left_radius, right_radius,dummy_1,dummy2 =\
+        image_pal_calculatn(binary_img2, left_lane, right_lane, 10)
     if current_position < 0:
         text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
     else:
@@ -454,10 +457,10 @@ def pipeline_video(input_img):
     binary_img = create_binary_img(undist_img, pts1, pts2)
 
     # Draw lane image
-    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=80, margin=100,
-                                                          tol_lane_gap=2)
-    color_img, current_position, left_radius, right_radius = image_pal_calculatn(binary_img2, left_lane,
-                                                                                      right_lane, 10)
+    binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=100, margin=100,
+                                                          tol_lane_gap=1.5)
+    color_img, current_position, left_radius, right_radius, left_end_in_dir,right_end_in_dir =\
+        image_pal_calculatn(binary_img2, left_lane, right_lane, 10)
     if current_position < 0:
         text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
     else:
@@ -472,4 +475,133 @@ def pipeline_video(input_img):
     cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
     cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
 
-    return result
+    return undist_img, rev_color_img,current_position,left_radius,right_radius,left_end_in_dir,right_end_in_dir
+
+def video_creation(original_video_name, output_video_name, end_sec = 1, start_sec = 0, flg_whole_vide = False):
+
+    video = cv2.VideoCapture(original_video_name)
+    total_num_frame = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = video.get(cv2.CAP_PROP_FPS)
+    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    out = cv2.VideoWriter('project_video_w_pipeline.mp4', fourcc, fps, (1280, 720))
+
+    start_frame = start_sec * fps
+    end_frame = end_sec * fps
+    if flg_whole_vide == True:
+        ent_frame = total_num_frame
+    else:
+        pass
+
+    #variable to judge irregularity.
+    time_record = []
+    time_record_position = []
+    time_record_r_rigth = []
+    time_record_r_left = []
+    time_record_width_in_dir = []
+    previous_image = None
+    previous_position = None
+    previous_l_radius = None
+    previous_r_radius = None
+    previous_width = None
+
+    for num_frame in range(0,(int)(end_frame)):
+        if num_frame < start_frame:
+            ret, frame = video.read() #pass until start flame
+        else:
+            print((int)(num_frame-start_frame),"/",(int)(end_frame - start_frame))
+            #Key to judge irregularity of lane data
+            left_key = True
+            right_key = True
+            width_key = True
+            ret, frame = video.read()
+
+            if ret == True:
+                undist_img, temp_img, current_position,left_radius,right_radius,left_end_in_dir,right_end_in_dir \
+                    = pipeline_video(frame)
+                width = right_end_in_dir - left_end_in_dir
+
+                print(num_frame)
+                try:
+                    r_rec = np.array(time_record_r_rigth[-5:-1])
+                    upper_bd = np.mean(r_rec) + 3*np.std(r_rec)
+                    lower_bd = np.mean(r_rec) - 3*np.std(r_rec)
+                    if right_radius >= upper_bd or right_radius <= lower_bd:
+                        right_key = False
+                    else:
+                        pass
+
+                    l_rec = np.array(time_record_r_left[-5:-1])
+                    upper_bd = np.mean(l_rec) + 3*np.std(l_rec)
+                    lower_bd = np.mean(l_rec) - 3*np.std(l_rec)
+                    if left_radius >= upper_bd or left_radius <= lower_bd:
+                        left_key = False
+                    else:
+                        pass
+
+                    width_rec = np.array(time_record_width_in_dir[-5:-1])
+                    upper_bd = np.mean(width_rec) + 4*np.std(width_rec)
+                    lower_bd = np.mean(width_rec) - 4*np.std(width_rec)
+
+                    if width >= upper_bd or width <= lower_bd or width < 0:
+                        width_key = False
+                        print("width: NOK")
+                    else:
+                        pass
+                except:
+                    pass
+
+                if num_frame - start_frame < 3:
+                    print("here")
+                    width_key = True
+                    left_key = True
+                    right_key = True
+
+                if right_key == True and left_key == True and width_key == True:
+                   result = cv2.addWeighted(undist_img, 1, temp_img, 0.9, 0)
+
+                   if current_position < 0:
+                       text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
+                   else:
+                       text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
+                   text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
+                                  + "Right radius: {0:.1f}".format(right_radius) + "m, "
+                   font = cv2.FONT_HERSHEY_DUPLEX
+                   cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+                   cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+
+                   previous_image = temp_img
+                   previous_position = current_position
+                   previous_l_radius = left_radius
+                   previous_r_radius = right_radius
+                   previous_width = width
+
+                   time_record_position.append(current_position)
+                   time_record_r_left.append(left_radius)
+                   time_record_r_rigth.append(right_radius)
+                   time_record_width_in_dir.append(width)
+                else:
+                    result = cv2.addWeighted(undist_img, 1, previous_image, 0.9, 0)
+
+                    if current_position < 0:
+                        text_in_img1 = "Position: {0:.3f}".format(abs(previous_position)) + "m on right"
+                    else:
+                        text_in_img1 = "Current position: {0:.3f}".format(abs(previous_position)) + "m on left"
+                    text_in_img2 = "Left radius: {0:.1f}".format(previous_l_radius) + "m" \
+                                   + "Right radius: {0:.1f}".format(previous_r_radius) + "m, "
+                    font = cv2.FONT_HERSHEY_DUPLEX
+                    cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+                    cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+
+                    time_record_position.append(current_position)
+                    time_record_r_left.append(left_radius)
+                    time_record_r_rigth.append(right_radius)
+                    time_record_width_in_dir.append(width)
+
+                time_record.append(num_frame/fps)
+                out.write(result)
+            else:
+                break
+    # Release everything if job is finished
+    video.release()
+    out.release()
+    cv2.destroyAllWindows()
