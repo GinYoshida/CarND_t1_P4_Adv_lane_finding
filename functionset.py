@@ -302,7 +302,7 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
     :param left_lane: coordination of left lane calculated from base image
     :param right_lane: coordination of right lane calculated from base image
     :param lane_thickness: lane thickness in converted image
-    :return: Lane image, and parameters of lane (possition, lane radius, lane status at end of lane image)
+    :return: Lane image, and parameters of lane (position, lane radius, lane status at end of lane image)
     '''
     ploty = np.linspace(0, 719, num=720)
     y_eval = np.max(ploty)
@@ -346,8 +346,8 @@ def image_pal_calculatn(img, left_lane, right_lane, lane_thickness = 5):
     lane_img = lane_img *120
     left_fit_cr = polyfit_funt(left_lane,xm_per_pix,ym_per_pix)
     right_fit_cr = polyfit_funt(right_lane,xm_per_pix,ym_per_pix)
-    left_radius  = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
-    right_radius  = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+    left_radius =((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5)/np.absolute(2*left_fit_cr[0])
+    right_radius =((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5)/np.absolute(2*right_fit_cr[0])
 
     return lane_img,current_position,left_radius,right_radius,left_end_in_dir,right_end_in_dir
 
@@ -361,7 +361,6 @@ def image_converter(input_file_name):
     :return: None
     '''
     file_path = './test_images/' + input_file_name + '.jpg'
-    print(file_path)
     target_img = cv2.imread(file_path)
     original = target_img.copy()
 
@@ -378,7 +377,7 @@ def image_converter(input_file_name):
     # Draw lane image
     binary_img2, left_lane, right_lane = lane_writer(binary_img, window_width=50, window_height=100, margin=100,
                                                           tol_lane_gap=1.5)
-    color_img, current_position, left_radius, right_radius,dummy_1,dummy2 =\
+    color_img, current_position, left_radius, right_radius,dummy_1,dummy2, dummy3 =\
         image_pal_calculatn(binary_img2, left_lane, right_lane, 10)
     if current_position < 0:
         text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
@@ -505,65 +504,62 @@ def video_creation(original_video_name, output_video_name, end_sec = 1, start_se
                     = pipeline_video(frame)
                 width = right_end_in_dir - left_end_in_dir
 
-                print(num_frame)
                 try:
                     r_rec = np.array(time_record_r_rigth[-5:-1])
-                    upper_bd = np.mean(r_rec) + 3*np.std(r_rec)
-                    lower_bd = np.mean(r_rec) - 3*np.std(r_rec)
+                    upper_bd = np.mean(r_rec) + 2.5*np.std(r_rec)
+                    lower_bd = np.mean(r_rec) - 2.5*np.std(r_rec)
                     if right_radius >= upper_bd or right_radius <= lower_bd:
                         right_key = False
                     else:
                         pass
 
                     l_rec = np.array(time_record_r_left[-5:-1])
-                    upper_bd = np.mean(l_rec) + 3*np.std(l_rec)
-                    lower_bd = np.mean(l_rec) - 3*np.std(l_rec)
+                    upper_bd = np.mean(l_rec) + 2.5*np.std(l_rec)
+                    lower_bd = np.mean(l_rec) - 2.5*np.std(l_rec)
                     if left_radius >= upper_bd or left_radius <= lower_bd:
                         left_key = False
                     else:
                         pass
 
                     width_rec = np.array(time_record_width_in_dir[-5:-1])
-                    upper_bd = np.mean(width_rec) + 4*np.std(width_rec)
-                    lower_bd = np.mean(width_rec) - 4*np.std(width_rec)
+                    upper_bd = np.mean(width_rec) + 3*np.std(width_rec)
+                    lower_bd = np.mean(width_rec) - 3*np.std(width_rec)
 
                     if width >= upper_bd or width <= lower_bd or width < 0:
                         width_key = False
-                        print("width: NOK")
                     else:
                         pass
                 except:
                     pass
 
                 if num_frame - start_frame < 3:
-                    print("here")
                     width_key = True
                     left_key = True
                     right_key = True
 
                 if right_key == True and left_key == True and width_key == True:
-                   result = cv2.addWeighted(undist_img, 1, temp_img, 0.9, 0)
+                    result = cv2.addWeighted(undist_img, 1, temp_img, 0.9, 0)
 
-                   if current_position < 0:
-                       text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
-                   else:
-                       text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
-                   text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
+                    if current_position < 0:
+                        text_in_img1 = "Position: {0:.3f}".format(abs(current_position)) + "m on right"
+                    else:
+                        text_in_img1 = "Current position: {0:.3f}".format(abs(current_position)) + "m on left"
+                        text_in_img2 = "Left radius: {0:.1f}".format(left_radius) + "m" \
                                   + "Right radius: {0:.1f}".format(right_radius) + "m, "
-                   font = cv2.FONT_HERSHEY_DUPLEX
-                   cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
-                   cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+                        font = cv2.FONT_HERSHEY_DUPLEX
+                    cv2.putText(result, text_in_img1, (20, 50), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
+                    cv2.putText(result, text_in_img2, (20, 100), font, 1.5, (255, 255, 255), 2, cv2.LINE_4)
 
-                   previous_image = temp_img
-                   previous_position = current_position
-                   previous_l_radius = left_radius
-                   previous_r_radius = right_radius
-                   previous_width = width
+                    previous_image = temp_img
+                    previous_position = current_position
+                    previous_l_radius = left_radius
+                    previous_r_radius = right_radius
+                    previous_width = width
 
-                   time_record_position.append(current_position)
-                   time_record_r_left.append(left_radius)
-                   time_record_r_rigth.append(right_radius)
-                   time_record_width_in_dir.append(width)
+                    time_record_position.append(current_position)
+                    time_record_r_left.append(left_radius)
+                    time_record_r_rigth.append(right_radius)
+                    time_record_width_in_dir.append(width)
                 else:
                     result = cv2.addWeighted(undist_img, 1, previous_image, 0.9, 0)
 
