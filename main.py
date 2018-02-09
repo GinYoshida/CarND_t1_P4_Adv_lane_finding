@@ -30,11 +30,13 @@ def main():
     #    myfc.image_converter(file_path)
 
     # Part for step2
-    myfc.video_creation("project_video.mp4","project_video_w_pipeline.mp4",42,40,False)
+    print("here")
+    myfc.video_creation("project_video.mp4","project_video_w_pipeline.mp4",3,0,False)
+    print("here")
 
 if __name__ == "__main__":
     # execute only if run as a script
     import os
-    os.chdir("C:/Users/hitoshi/AppData/Local/Programs/Python/" +
-             "Python35/Scripts/Udacity/CarND_t1_P4_Adv_lane_finding")
+#    os.chdir("C:/Users/hitoshi/AppData/Local/Programs/Python/" +
+#             "Python35/Scripts/Udacity/CarND_t1_P4_Adv_lane_finding")
     main()
