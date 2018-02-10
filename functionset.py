@@ -522,8 +522,8 @@ def video_creation(original_video_name, output_video_name, end_sec = 1, start_se
                         pass
 
                     width_rec = np.array(time_record_width_in_dir[-5:-1])
-                    upper_bd = np.mean(width_rec) + 3*np.std(width_rec)
-                    lower_bd = np.mean(width_rec) - 3*np.std(width_rec)
+                    upper_bd = np.mean(width_rec) + 1*np.std(width_rec)
+                    lower_bd = np.mean(width_rec) - 1*np.std(width_rec)
 
                     if width >= upper_bd or width <= lower_bd or width < 0:
                         width_key = False
