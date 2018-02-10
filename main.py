@@ -30,7 +30,7 @@ def main():
     #    myfc.image_converter(file_path)
 
     # Part for step2
-    myfc.video_creation("project_video.mp4","project_video_w_pipeline.mp4",3,0,True)
+    myfc.video_creation("project_video.mp4","project_video_w_pipeline.mp4",50,0,True)
 
 if __name__ == "__main__":
     # execute only if run as a script
