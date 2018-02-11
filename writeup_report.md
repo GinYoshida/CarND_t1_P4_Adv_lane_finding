@@ -21,6 +21,8 @@ The goals / steps of this project are the following:
 [image2]: ./output_images/test10.png "example2"
 [image3]: ./output_images/sobelx_example.png "sobelx_binary output"
 [image4]: ./output_images/s_channel_example.png "s compositon output"
+[image5]: ./output_images/test9.png "light pavement"
+[image6]: ./output_images/test11.png "shadow"
 [video1]: ./project_video_w_pipeline.avi "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
@@ -123,12 +125,28 @@ In Fig1, examples of image afrer perspective transform are shown in upper right.
 
 #### 7. Discussion
 
- During this project, there were 3 difficulties.
+ During this project, there were 2 difficulties. 
  i). Pavement color was changed from dark gray to light gray
  ii). Shadow of tree
- iii). Irregurality of results
  
- i) leads difficulty to detect yellow lane from pavement. This effect is siginificant for S channel. Then, to reduce this effect, histgram equalization was implemented for S channel.
- 
- Fig3.
- 
+ i) leads difficulty to detect lane from pavement. This effect is siginificant for S channel. Then, to reduce this effect, histgram equalization was implemented for S channel. (from line 69 to 72 in functionset.py)
+ ii) leads diffictulty to detect lane from shadow. This effect is significant for S channel same as i). To reduce this effect, pixel shoing low value in L channel were excludied. (from line 64 to 67 in functionset.py)
+
+ Fig1. b) is combination of both difficulty and after implementation of above countermeasures, lane detection was done successfully. 
+ In Fig3, other example for each topic is shown.
+
+#### Fig.3 Example of difficulty
+##### (a) Ligth gray pavement area
+![alt text][image5]
+##### (a) Shadow
+![alt text][image6]
+
+ Even if above countermeasure was implemented, still some error occured. For instance, radius is too small, lane distance gets too small , or negative, at the end of lane detected in direction of travel. 
+ To reduce the effect from error, error check was implemented. It is from line 500 to 534 in functionset.py
+ in these section, past 5 frames data was used to judge the irregurality.
+ If one of radii or lane distance is too bigger or smaller than previoru 5 frames values, lane image from previous frame was applied.  
+  To judge too bigger and samller, mean and standard deviation were applied.
+  For radius, (mean) +/- 2.5 x (standard deviation) was used as tolerance. (from line 501 to 513 in functionset.py)
+  For lane distance, (mean) +/- (standard deviation) was used as tolerance. (from line 517 to 524 in functionset.py)
+  Howeverm, negative lane distance was excluded even if it was in tolerance. Because it measn both lanes corres. (from line 521 to 524 in functionset.py)
+  
