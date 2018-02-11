@@ -123,6 +123,12 @@ In Fig1, examples of image afrer perspective transform are shown in upper right.
 
 #### 7. Discussion
 
-
-
+ During this project, there were 3 difficulties.
+ i). Pavement color was changed from dark gray to light gray
+ ii). Shadow of tree
+ iii). Irregurality of results
+ 
+ i) leads difficulty to detect yellow lane from pavement. This effect is siginificant for S channel. Then, to reduce this effect, histgram equalization was implemented for S channel.
+ 
+ Fig3.
  
