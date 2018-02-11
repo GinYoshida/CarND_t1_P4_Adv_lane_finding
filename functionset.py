@@ -71,26 +71,19 @@ def create_binary_img(img,pts1,pts2):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
     s_channel = clahe.apply(s_channel)
 
-    # Gradient detection for L channel
-    sobelx_s = cv2.Sobel(s_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
-    abs_sobelx_s = np.absolute(sobelx_s)
-    scaled_sobel_s = np.uint8(255 * abs_sobelx_s / np.max(abs_sobelx_s))
-    sxbinary_s = np.zeros_like(scaled_sobel_s)
-    sxbinary_s[(scaled_sobel_s >= 50) & (scaled_sobel_s <= 190)] = 1
+    # Convert from S channel to binary data
+    s_binary = np.zeros_like(s_channel)
+    s_binary[:, :] = 0
+    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
 
     # Convert from l channel data to binary data based on Sobel
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0)  # Take the derivative in x
     abs_sobelx = np.absolute(sobelx)  # Absolute x derivative to accentuate lines away from horizontal
     scaled_sobel = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
-
+    
     # Threshold x gradient
     sxbinary = np.ones_like(scaled_sobel)
     sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 0
-
-    # Convert from S channel to binary data
-    s_binary = np.zeros_like(s_channel)
-    s_binary[:, :] = 0
-    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= 255)] = 1
 
     # Combine both sobel and S channel data
     output_binary = np.zeros_like(sxbinary)
