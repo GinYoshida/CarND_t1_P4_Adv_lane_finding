@@ -63,7 +63,7 @@ Each function is used for each of step1 and step2 in main.py respectively.
 
  Input file for step2 in main.py.
 
-### `project_video_w_pipeline.mp4`
+### `project_video_w_pipeline.avi`
  Output file for step2 in main.py
 
 ### `writeup_report.md`
